@@ -1,6 +1,10 @@
 Contec CMS50D+ Pulse Oximeter Data Downloader
 =============================================
 
+driver for cable: https://www.silabs.com/products/development-tools/software/usb-to-uart-bridge-vcp-drivers
+(not sure if this one is necessary) Device Manager > Action> Add legacy hardware, this gets com port in windows.
+
+
 This python script can download both live data and recorded data from a Contec 
 CMS50D+ pulse oximeter into a standard CSV file for further analysis.
 

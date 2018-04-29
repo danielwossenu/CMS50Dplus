@@ -2,9 +2,11 @@
 import sys, serial, argparse, csv, datetime
 from dateutil import parser as dateparser
 import time
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 class LiveDataPoint(object):
-    def __init__(self, time, data): 
+    def __init__(self, time, data):
         if [d & 0x80 != 0 for d in data] != [True, False, False, False, False]:
            raise ValueError("Invalid data packet.")
 
@@ -92,7 +94,7 @@ class LiveDataPoint(object):
 
     @staticmethod
     def getCsvColumns():
-        return ["Time", "PulseRate", "SpO2", "PulseWaveform", "BarGraph", 
+        return ["Time", "PulseRate", "SpO2", "PulseWaveform", "BarGraph",
                 "SignalStrength", "Beep", "FingerOut", "Searching",
                 "DroppingSpO2", "ProbeError"]
 
@@ -189,7 +191,7 @@ class CMS50Dplus(object):
             return None
         else:
             return ord(char)
-    
+
     def sendBytes(self, values):
         return self.conn.write(''.join([chr(value & 0xff) for value in values]))
 
@@ -209,7 +211,7 @@ class CMS50Dplus(object):
             idx = 0
             while True:
                 byte = self.getByte()
-            
+
                 if byte is None:
                     break
 
@@ -218,7 +220,7 @@ class CMS50Dplus(object):
                         yield LiveDataPoint(datetime.datetime.utcnow(), packet)
                     packet = [0]*5
                     idx = 0
-            
+
                 if idx < 5:
                     packet[idx] = byte
                     idx+=1
@@ -239,8 +241,8 @@ class CMS50Dplus(object):
 
             # Wait for preamble.
             for x in range(3):
-                if (not (self.expectByte(0xf2) and 
-                         self.expectByte(0x80) and 
+                if (not (self.expectByte(0xf2) and
+                         self.expectByte(0x80) and
                          self.expectByte(0x00))):
                     raise Exception("No preamble in device response!")
 
@@ -259,7 +261,7 @@ class CMS50Dplus(object):
 
             # Calculate length in hours, minutes, and seconds.
             s = length / 3
-            
+
             h = int(s / 3600)
             s -= h * 3600
 
@@ -283,6 +285,47 @@ class CMS50Dplus(object):
         finally:
             self.sendBytes([0xf6, 0xf6, 0xf6])
             self.disconnect()
+
+
+def printLiveData(port):
+    print "Saving live data..."
+    print "Press CTRL-C or disconnect the device to terminate data collection."
+    oximeter = CMS50Dplus(port)
+    measurements = 0
+    wave_y = [0]*600
+    wave_x = range(0,600)
+
+    plt.ion()
+    fig = plt.figure()
+    ax1 = fig.add_subplot(1, 1, 1)
+    # plt.show()
+    print LiveDataPoint.getCsvColumns()
+
+
+    # ax1.clear()
+    # ax1.plot(wave_x, wave_y)
+    for liveData in oximeter.getLiveData():
+        data = liveData.getCsvData()
+        # print [0]*data[3]
+        print data
+        measurements += 1
+
+        wave_y[measurements%600] = data[4]
+
+        # ax1.clear()
+
+        # ax1.clear()
+        # ax1.plot(wave_x, wave_y, '-')
+        # plt.draw()
+        # plt.pause(0.00001)
+
+    # ani = animation.FuncAnimation(fig, animate, interval=500)
+    # plt.show()
+    #
+    # plt.show()
+
+        # sys.stdout.write("\rGot {0} measurements...".format(measurements))
+        # sys.stdout.flush()
 
 def dumpLiveData(port, filename):
     print "Saving live data..."
@@ -318,7 +361,7 @@ def dumpRecordedData(starttime, port, filename):
             writer.writerow(recordedData.getCsvData())
             measurements += 1
             sys.stdout.write("\rGot {0} measurements...".format(measurements))
-            sys.stdout.flush()        
+            sys.stdout.flush()
 
 def valid_datetime(s):
     try:
@@ -328,20 +371,24 @@ def valid_datetime(s):
         raise argparse.ArgumentTypeError(msg)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="cms50dplus.py v1.2 - Contec CMS50D+ Data Downloader (c) 2015 atbrask")
-    parser.add_argument("mode", help="Specify LIVE for live data or RECORDED for recorded data.", choices=["LIVE", "RECORDED"])
-    parser.add_argument("serialport", help="The device's virtual serial port.")
-    parser.add_argument("output", help="Output CSV file.")
-    parser.add_argument('-s', "--starttime", help="The start time for RECORDED mode data.", type=valid_datetime)
+    printLiveData("COM6")
+    # dumpLiveData("COM6", "output.csv")
 
-    args = parser.parse_args()
 
-    if args.mode == 'LIVE':
-        dumpLiveData(args.serialport, args.output)
-    elif args.mode == 'RECORDED' and args.starttime is not None:
-        dumpRecordedData(args.starttime, args.serialport, args.output)
-    else:
-        print "Missing start time for RECORDED mode."
-
-    print ""
-    print "Done."
+    # parser = argparse.ArgumentParser(description="cms50dplus.py v1.2 - Contec CMS50D+ Data Downloader (c) 2015 atbrask")
+    # parser.add_argument("mode", help="Specify LIVE for live data or RECORDED for recorded data.", choices=["LIVE", "RECORDED"])
+    # parser.add_argument("serialport", help="The device's virtual serial port.")
+    # parser.add_argument("output", help="Output CSV file.")
+    # parser.add_argument('-s', "--starttime", help="The start time for RECORDED mode data.", type=valid_datetime)
+    #
+    # args = parser.parse_args()
+    #
+    # if args.mode == 'LIVE':
+    #     dumpLiveData(args.serialport, args.output)
+    # elif args.mode == 'RECORDED' and args.starttime is not None:
+    #     dumpRecordedData(args.starttime, args.serialport, args.output)
+    # else:
+    #     print "Missing start time for RECORDED mode."
+    #
+    # print ""
+    # print "Done."
